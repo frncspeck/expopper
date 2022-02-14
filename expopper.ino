@@ -9,6 +9,9 @@
 Adafruit_MCP9600 mcp;
 float HotJunctionTemp = 0;
 
+//Init
+int startRoast = 0;
+
 //LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -24,19 +27,57 @@ int LEDState        = 0;   // take light status
 // Relais logic
 const int Relais1 = 8;
 const int Relais2 = 9;
-int relais_cycle = 200; // if set to higher value will cycle
+int relais_cycle = 0; // if set to higher value will cycle
 int relais_counter = 0; // during cycling used as counter
 int relais_state = 0; // during cycling used to toggle state 
 
 // Serial controller
 int incomingByte = 0;
 
-void setup()
+void start2Roast()
+{
+    lcd.begin(16, 2);
+    lcd.print("TC degrees C");
+    startRoast = millis();
+    digitalWrite(Relais1, LOW);
+}
+
+void in2Roast()
+{
+  lcd.setCursor(0, 1);
+  //Print seconds since start -> timing
+  timer = (millis() - startRoast) / 1000; // in seconds
+  HotJunctionTemp = mcp.readThermocouple();
+  lcd.print(timer); lcd.print(' '); lcd.print(HotJunctionTemp);
+
+  if (relais_cycle > 0) {
+    if (relais_counter > 0) {
+      relais_counter -= 1;
+    } else {
+      relais_counter = relais_cycle;
+      if (relais_state == 1) {
+        relais_state = 0;
+        digitalWrite(Relais1, HIGH);
+      } else {
+        relais_state = 1;
+        digitalWrite(Relais1, LOW);
+      }
+    }
+  }  
+}
+
+void stop2Roast()
 {
     // LCD setup
     lcd.begin(16, 2);
-    lcd.print("TC degrees C");
+    lcd.print("Waiting 2 start");
+    relais_cycle = 0;
+    digitalWrite(Relais1, HIGH);
+    startRoast = 0;
+}
 
+void setup()
+{
     // Button setup
     pinMode(CrackButton, INPUT_PULLUP);
     pinMode(LED, OUTPUT);
@@ -95,6 +136,9 @@ void setup()
   mcp.enable(true);
 
   Serial.println(F("------------------------------"));
+
+  stop2Roast();
+
 }
 
 void loop()
@@ -116,32 +160,22 @@ void loop()
   }
   LastButtonState = ButtonState;
 
-  lcd.setCursor(0, 1);
-  //Print seconds since start -> timing
-  timer = millis() / 1000; // in seconds
-  HotJunctionTemp = mcp.readThermocouple();
-  lcd.print(timer); lcd.print(' '); lcd.print(HotJunctionTemp);
-
-  if (relais_cycle > 0) {
-    if (relais_counter > 0) {
-      relais_counter -= 1;
-    } else {
-      relais_counter = relais_cycle;
-      if (relais_state == 1) {
-        relais_state = 0;
-        digitalWrite(Relais1, HIGH);
-      } else {
-        relais_state = 1;
-        digitalWrite(Relais1, LOW);
-      }
-    }
+  if ( startRoast != 0 ) {
+    in2Roast();
   }
 
   if (Serial.available() > 0) {
     incomingByte = Serial.read();
     
-    if (incomingByte == 114) { // 114 == r == activate relais
-      relais_cycle = 200; // now cycle hard coded, allow input in future      
+    if (incomingByte == 103) { // 103 == g == start roast
+      start2Roast();
+    }
+    else if (incomingByte == 97) { // 97 == a == arrest roast
+      stop2Roast();
+    }
+    else if (incomingByte == 114) { // 114 == r == activate relais
+      // Cycle time is set to the multiple of the next 2 byte characters
+      relais_cycle = Serial.read()*Serial.read();
     }
     else if (incomingByte == 115) {  // 115 == s == send data
       Serial.print("Time: "); Serial.println(timer);
