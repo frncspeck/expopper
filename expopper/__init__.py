@@ -3,14 +3,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 import os
+import time
 
-def roast_profile(port="/dev/cu.usbmodem301", animated=True):  #"/dev/cu.usbmodem14101"
+def roast_profile(port="/dev/cu.usbmodem14101", animated=True, cycle=30):  #"/dev/cu.usbmodem301"
     if animated:
         plt.ion()
         ax = make_animated_plot([], [])
         tax = ax.twinx()
         plt.draw()
-
+        
     serialPort = serial.Serial(
         port=port,
         baudrate=115200,
@@ -18,15 +19,23 @@ def roast_profile(port="/dev/cu.usbmodem301", animated=True):  #"/dev/cu.usbmode
         timeout=2,
         stopbits=serial.STOPBITS_ONE,
     )
+
+    if cycle:
+        serialPort.write(b'r')
+        # TODO send cycle profile
+        
     times = []
     hotjunctions = []
     coldjunctions = []
     cracks = []
 
+    # Request first data point
+    serialPort.write(b's')
     try:
         while True:
             if serialPort.in_waiting:
                 line = serialPort.readline()
+                #print(line)
                 if b'Time' in line:
                     times.append(int(line.strip().split()[1]))
                 elif b'Hot' in line:
@@ -44,7 +53,10 @@ def roast_profile(port="/dev/cu.usbmodem301", animated=True):  #"/dev/cu.usbmode
                         continue
                     else:
                         break
-
+            else:
+                time.sleep(1)
+                serialPort.write(b's')
+                
     except KeyboardInterrupt:
         serialPort.close()
 
@@ -105,7 +117,7 @@ def make_animated_plot(x,y,ax=None, tax=None):
         ax.autoscale_view()
         plt.draw()
         plt.pause(0.05);
-
+    
 def compare_profiles(*filenames, reset_times=None):
     if reset_times and isinstance(reset_times, list):
         reset_times = dict(zip([os.path.basename(f) for f in filenames], reset_times))
@@ -119,3 +131,4 @@ def compare_profiles(*filenames, reset_times=None):
     ax.set_ylabel('Temperature (°C)')
     ax.legend()
     return data
+
