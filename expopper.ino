@@ -21,16 +21,29 @@ int ButtonState     = 0;   // take current button state
 int LastButtonState = 0;   // take last button state
 int LEDState        = 0;   // take light status
 
+// Relais logic
+const int Relais1 = 8;
+const int Relais2 = 9;
+int relais_cycle = 200; // if set to higher value will cycle
+int relais_counter = 0; // during cycling used as counter
+int relais_state = 0; // during cycling used to toggle state 
+
+// Serial controller
+int incomingByte = 0;
+
 void setup()
 {
     // LCD setup
     lcd.begin(16, 2);
     lcd.print("TC degrees C");
 
-    // Button setip
+    // Button setup
     pinMode(CrackButton, INPUT_PULLUP);
     pinMode(LED, OUTPUT);
 
+    // Relais setup
+    pinMode(Relais1, OUTPUT);
+    
     // Thermocouple setup
     Serial.begin(115200);
     while (!Serial) {
@@ -99,7 +112,7 @@ void loop()
     {
       digitalWrite(LED, LOW);
       LEDState = 0;
-    }
+    }    
   }
   LastButtonState = ButtonState;
 
@@ -108,10 +121,41 @@ void loop()
   timer = millis() / 1000; // in seconds
   HotJunctionTemp = mcp.readThermocouple();
   lcd.print(timer); lcd.print(' '); lcd.print(HotJunctionTemp);
-  Serial.print("Time: "); Serial.println(timer);
-  Serial.print("Hot Junction: "); Serial.println(HotJunctionTemp);
-  Serial.print("Cold Junction: "); Serial.println(mcp.readAmbient());
-  Serial.print("ADC: "); Serial.print(mcp.readADC() * 2); Serial.println(" uV");
-  Serial.print("Crack: "); Serial.println(LEDState);
-  delay(1000);
+
+  if (relais_cycle > 0) {
+    if (relais_counter > 0) {
+      relais_counter -= 1;
+    } else {
+      relais_counter = relais_cycle;
+      if (relais_state == 1) {
+        relais_state = 0;
+        digitalWrite(Relais1, HIGH);
+      } else {
+        relais_state = 1;
+        digitalWrite(Relais1, LOW);
+      }
+    }
+  }
+
+  if (Serial.available() > 0) {
+    incomingByte = Serial.read();
+    
+    if (incomingByte == 114) { // 114 == r == activate relais
+      relais_cycle = 200; // now cycle hard coded, allow input in future      
+    }
+    else if (incomingByte == 115) {  // 115 == s == send data
+      Serial.print("Time: "); Serial.println(timer);
+      Serial.print("Hot Junction: "); Serial.println(HotJunctionTemp);
+      Serial.print("Cold Junction: "); Serial.println(mcp.readAmbient());
+      Serial.print("ADC: "); Serial.print(mcp.readADC() * 2); Serial.println(" uV");
+      Serial.print("Crack: "); Serial.println(LEDState);
+    }
+    else {
+      Serial.print("Received: ");
+      Serial.println(incomingByte, DEC);
+    }
+  }
+
+  delay(100);
 }
+
