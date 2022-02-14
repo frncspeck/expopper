@@ -5,7 +5,11 @@ from scipy.interpolate import UnivariateSpline
 import os
 import time
 
-def roast_profile(port="/dev/cu.usbmodem14101", animated=True, cycle=30):  #"/dev/cu.usbmodem301"
+def roast_profile(port=1, animated=True, cycle=20):
+    from serial.tools.list_ports import comports
+    comoptions = comports()
+    port = comoptions[port].device
+    
     if animated:
         plt.ion()
         ax = make_animated_plot([], [])
@@ -20,9 +24,13 @@ def roast_profile(port="/dev/cu.usbmodem14101", animated=True, cycle=30):  #"/de
         stopbits=serial.STOPBITS_ONE,
     )
 
+    # Sleep 5
+    time.sleep(5)
+    
+    serialPort.write(b'g')
     if cycle:
-        serialPort.write(b'r')
-        # TODO send cycle profile
+        serialPort.write(b'r' + chr(cycle).encode() + chr(10).encode())
+        # TODO more complicated cycle profile
         
     times = []
     hotjunctions = []
@@ -52,12 +60,14 @@ def roast_profile(port="/dev/cu.usbmodem14101", animated=True, cycle=30):  #"/de
                     if not times:
                         continue
                     else:
+                        serialPort.write(b'a')
                         break
             else:
                 time.sleep(1)
                 serialPort.write(b's')
                 
     except KeyboardInterrupt:
+        serialPort.write(b'a')
         serialPort.close()
 
     #Process data
@@ -89,7 +99,10 @@ def make_single_plot(data, ax=None, label='Hot junction', cracks='r', cold_too=T
     return ax
 
 def calculate_derivative(x, y, ax=None): # hot ~ RoR
-    spl = UnivariateSpline(x, y, k=4, s=0)
+    try: spl = UnivariateSpline(x, y, k=4, s=0)
+    except ValueError:
+        # with s=0 ValueError in certain conditions
+        spl = UnivariateSpline(x, y, k=4, s=None)
     spl.derivative()
     der = spl.derivative()
 
@@ -131,4 +144,5 @@ def compare_profiles(*filenames, reset_times=None):
     ax.set_ylabel('Temperature (°C)')
     ax.legend()
     return data
+
 
