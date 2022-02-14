@@ -7,16 +7,29 @@
 #define I2C_ADDRESS (0x67)
 
 Adafruit_MCP9600 mcp;
+float HotJunctionTemp = 0;
+
 //LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 unsigned long timer;
+
+// Button logic
+const int CrackButton  = 7;//A1;
+const int LED       = 13;  // the Uno LED
+int ButtonState     = 0;   // take current button state
+int LastButtonState = 0;   // take last button state
+int LEDState        = 0;   // take light status
 
 void setup()
 {
     // LCD setup
     lcd.begin(16, 2);
     lcd.print("TC degrees C");
+
+    // Button setip
+    pinMode(CrackButton, INPUT_PULLUP);
+    pinMode(LED, OUTPUT);
 
     // Thermocouple setup
     Serial.begin(115200);
@@ -73,13 +86,32 @@ void setup()
 
 void loop()
 {
+  //Crack button logic
+  ButtonState = digitalRead(CrackButton);
+  if (LastButtonState == 0 && ButtonState == 1)
+  {
+    if (LEDState == 0)
+    {
+      digitalWrite(LED, HIGH);
+      LEDState = 1;
+    }
+    else
+    {
+      digitalWrite(LED, LOW);
+      LEDState = 0;
+    }
+  }
+  LastButtonState = ButtonState;
+
   lcd.setCursor(0, 1);
   //Print seconds since start -> timing
   timer = millis() / 1000; // in seconds
-  lcd.print(mcp.readThermocouple());
+  HotJunctionTemp = mcp.readThermocouple();
+  lcd.print(timer); lcd.print(' '); lcd.print(HotJunctionTemp);
   Serial.print("Time: "); Serial.println(timer);
-  Serial.print("Hot Junction: "); Serial.println(mcp.readThermocouple());
+  Serial.print("Hot Junction: "); Serial.println(HotJunctionTemp);
   Serial.print("Cold Junction: "); Serial.println(mcp.readAmbient());
   Serial.print("ADC: "); Serial.print(mcp.readADC() * 2); Serial.println(" uV");
+  Serial.print("Crack: "); Serial.println(LEDState);
   delay(1000);
 }
