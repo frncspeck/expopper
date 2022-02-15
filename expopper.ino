@@ -27,7 +27,8 @@ int LEDState        = 0;   // take light status
 // Relais logic
 const int Relais1 = 8;
 const int Relais2 = 9;
-int relais_cycle = 0; // if set to higher value will cycle
+int relais_cycle_up = 0;   // if set to higher value will cycle up
+int relais_cycle_down = 0; // and will cycle down
 int relais_counter = 0; // during cycling used as counter
 int relais_state = 0; // during cycling used to toggle state 
 
@@ -50,17 +51,18 @@ void in2Roast()
   HotJunctionTemp = mcp.readThermocouple();
   lcd.print(timer); lcd.print(' '); lcd.print(HotJunctionTemp);
 
-  if (relais_cycle > 0) {
+  if (relais_cycle_up > 0) {
     if (relais_counter > 0) {
       relais_counter -= 1;
-    } else {
-      relais_counter = relais_cycle;
+    } else {      
       if (relais_state == 1) {
         relais_state = 0;
         digitalWrite(Relais1, HIGH);
+        relais_counter = relais_cycle_down;
       } else {
         relais_state = 1;
         digitalWrite(Relais1, LOW);
+        relais_counter = relais_cycle_up;
       }
     }
   }  
@@ -71,7 +73,8 @@ void stop2Roast()
     // LCD setup
     lcd.begin(16, 2);
     lcd.print("Waiting 2 start");
-    relais_cycle = 0;
+    relais_cycle_up = 0;
+    relais_cycle_down = 0; // in current logic redundant
     digitalWrite(Relais1, HIGH);
     startRoast = 0;
 }
@@ -175,7 +178,8 @@ void loop()
     }
     else if (incomingByte == 114) { // 114 == r == activate relais
       // Cycle time is set to the multiple of the next 2 byte characters
-      relais_cycle = Serial.read()*Serial.read();
+      relais_cycle_up = Serial.read()*10;
+      relais_cycle_down = Serial.read()*10;
     }
     else if (incomingByte == 115) {  // 115 == s == send data
       Serial.print("Time: "); Serial.println(timer);
@@ -192,4 +196,3 @@ void loop()
 
   delay(100);
 }
-
