@@ -5,7 +5,7 @@ from scipy.interpolate import UnivariateSpline
 import os
 import time
 
-def roast_profile(port=1, animated=True, cycle=20):
+def roast_profile(port=1, animated=True, cycle_up=30, cycle_down=15):
     from serial.tools.list_ports import comports
     comoptions = comports()
     port = comoptions[port].device
@@ -28,9 +28,8 @@ def roast_profile(port=1, animated=True, cycle=20):
     time.sleep(5)
     
     serialPort.write(b'g')
-    if cycle:
-        serialPort.write(b'r' + chr(cycle).encode() + chr(10).encode())
-        # TODO more complicated cycle profile
+    if cycle_up:
+        serialPort.write(b'r' + chr(cycle_up).encode() + chr(cycle_down).encode())
         
     times = []
     hotjunctions = []
@@ -144,5 +143,3 @@ def compare_profiles(*filenames, reset_times=None):
     ax.set_ylabel('Temperature (°C)')
     ax.legend()
     return data
-
-
