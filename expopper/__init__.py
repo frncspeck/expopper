@@ -5,7 +5,7 @@ from scipy.interpolate import UnivariateSpline
 import os
 import time
 
-def roast_profile(port=1, animated=True, cycle_up=30, cycle_down=15):
+def roast_profile(port=1, animated=True, cycle_up=30, cycle_down=15, record_cracks=True, file_prefix=None):
     from serial.tools.list_ports import comports
     comoptions = comports()
     port = comoptions[port].device
@@ -26,6 +26,17 @@ def roast_profile(port=1, animated=True, cycle_up=30, cycle_down=15):
 
     # Sleep 5
     time.sleep(5)
+
+    # Init recording
+    if record_cracks:
+        import sounddevice as sd
+        import numpy as np
+        fs = 44100  # Sample rate
+        minute = 60
+        seconds = 10 * minute
+        recording = sd.rec(int(seconds * fs), samplerate=fs, channels=1)
+    else:
+        recording = None
     
     serialPort.write(b'g')
     if cycle_up:
@@ -68,7 +79,12 @@ def roast_profile(port=1, animated=True, cycle_up=30, cycle_down=15):
     except KeyboardInterrupt:
         serialPort.write(b'a')
         serialPort.close()
-
+        if record_cracks:
+            sd.stop()
+            # Delete non recorded part of array
+            recording = recording[:-np.argmax((recording != 0)[::-1])]
+            #ax.plot(range(len(recording)), np.abs(recording) > 0.05)
+            
     #Process data
     if len(cracks) > len(times):
         cracks = cracks[:len(times)]
@@ -80,7 +96,14 @@ def roast_profile(port=1, animated=True, cycle_up=30, cycle_down=15):
     })
     data.cracks = (data.cracks.shift(-1) != data.cracks).shift().fillna(False)
     make_single_plot(data)
-    return data
+
+    if file_prefix:
+        data.to_csv(file_prefix+'.csv')
+        if recording:
+            from scipy.io import wavfile
+            wavfile.write(file_prefix+'.wav', fs, recording)
+    
+    return data, recording
 
 # Figure
 def make_single_plot(data, ax=None, label='Hot junction', cracks='r', cold_too=True):
